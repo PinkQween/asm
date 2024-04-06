@@ -15,4 +15,4 @@ cat build/bootloader.bin build/kernel.o > build/os.bin
 echo "Done."
 
 # Launch the OS using QEMU
-qemu-system-i386 -fda build/os.bin
+qemu-system-x86_64 -s -fda build/os.bin
