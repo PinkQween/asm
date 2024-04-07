@@ -56,49 +56,54 @@ start:
 
     jc read_error          ; Jump to 'read_error' if the carry flag is set, indicating an error
 
-    ; Check kernel signature
+    ; Print out the loaded signature
     mov si, buffer         ; Point SI to the beginning of the buffer
     add si, 510            ; Address of kernel signature in the buffer
+    mov di, si             ; Copy SI to DI for printing
+    call print_hex         ; Print the loaded signature in hexadecimal
+
+    ; Print out the expected signature
+    mov eax, 0xDEADBEEF    ; Expected kernel signature
+    movzx edi, ax          ; Copy expected signature to DI for printing (Zero extend EAX into EDI)
+    mov si, ax              ; Move lower 16 bits to DI
+    call print_hex         ; Print the expected signature in hexadecimal
+
+    ; Compare signatures
     mov eax, dword [si]    ; Load the actual signature into EAX
-
-    ; Print the loaded signature in hexadecimal format
-    mov cx, 8              ; Set the counter to 8 digits (dword size)
-    print_loop:
-        mov edx, eax       ; Move the signature value to EDX
-        shr edx, 28        ; Shift right by 28 bits to isolate the leftmost nibble
-        mov dl, dh         ; Move the lower nibble into DL
-        call print_hex_nibble ; Print the lower nibble
-        shl eax, 4         ; Shift left by 4 bits to prepare for the next nibble
-        loop print_loop    ; Repeat until all 8 digits are printed
-
-    ; Debug output to confirm loaded signature
-    mov si, debug_signature_loaded
-    call print_string
-    mov eax, dword [si]
-    call print_hex
-    call print_newline
-
     cmp eax, 0xDEADBEEF    ; Compare the kernel signature
     je valid_kernel        ; Jump to 'valid_kernel' if the signature matches
+
+    ; jmp valid_kernel
+
+    call print_newline
+
+    ; Print error message if signatures don't match
     mov si, invalid_kernel
     call print_string
-    jmp halt               ; Jump to halt if signature doesn't match
 
-    ; Subroutine to print a single hexadecimal nibble
-    print_hex_nibble:
-        push ax            ; Preserve AX
-        push bx            ; Preserve BX
-        mov bx, hex_digits ; Load the address of the hexadecimal digits table
-        add bx, dx         ; Add the index (nibble value) to the table address
-        mov al, byte [bx]  ; Load the hexadecimal digit from the table
-        call print_char    ; Print the character
-        pop bx             ; Restore BX
-        pop ax             ; Restore AX
-        ret
+    ; Halt the system
+    jmp halt
 
-    hex_digits db "0123456789ABCDEF" ; String containing hexadecimal digits
+print_hex:
+    mov ecx, 8             ; Print 8 hex digits for a 32-bit value
+print_hex_loop:
+    ; Extract the most significant nibble
+    mov ebx, eax
+    shr ebx, 28            ; Shift 28 bits to get the most significant nibble
+    and ebx, 0xF           ; Mask to get only the nibble
+    movzx ebx, byte [hex_table + ebx]  ; Get ASCII character for the nibble
+    mov [si], bl           ; Store the ASCII character in SI
+    inc si                 ; Move to the next position in the buffer
+    ; Move to the next nibble
+    shl eax, 4             ; Shift left by 4 bits to move to the next nibble
+    loop print_hex_loop
+    ret
 
-    debug_signature_loaded db "Loaded Signature: ", 0
+hex_table db '0123456789ABCDEF'  ; Lookup table for converting nibbles to ASCII
+
+
+signature_msg db "Expected Signature: ", 0
+invalid_kernel db 0x0D, "Invalid Kernel Signature", 0x0D, 0x0A, 0
 
 print_newline:
     mov ah, 0x0E        ; Function code for BIOS teletype output
@@ -130,26 +135,6 @@ print_string:
     done:
         ret
 
-print_hex:
-    push ax                     ; Preserve AX register
-    mov cx, 8                   ; Counter for 8 hex digits
-next_digit:
-    rol eax, 4                  ; Rotate the value in EAX right by 4 bits
-    mov bl, al                  ; Move the lower 4 bits to BL
-    and bl, 0x0F                ; Mask the lower 4 bits of BL
-    cmp bl, 10                  ; Check if the value is greater than or equal to 10
-    jl print_digit              ; If not, jump to print_digit
-    add bl, 7                   ; If greater than or equal to 10, add 7 to get ASCII for A-F
-print_digit:
-    add bl, '0'                 ; Convert the value in BL to ASCII
-    mov ah, 0x0E                ; Set BIOS function to print character
-    mov bh, 0x00                ; Display page number
-    int 0x10                    ; Call BIOS interrupt to print character
-    dec cx                      ; Decrement the digit counter
-    jnz next_digit              ; Jump to next_digit if not zero
-    pop ax                      ; Restore AX register
-    ret
-
 read_error:
     mov si, errorMsg            ; Load address of error message into SI
     call print_string           ; Display the error message
@@ -165,7 +150,6 @@ msg db 0x0D, "Booting...", 0x0D, 0x0A, 0
 errorMsg db 0x0D, "Disk read error!", 0x0D, 0x0A, 0
 noErrorMsg db 0x0D, "no read error", 0x0D, 0x0A, 0
 halting db 0x0D, "halting system", 0x0D, 0x0A, 0
-invalid_kernel db 0x0D, "invalid kernel", 0x0D, 0x0A, 0
 is_hex_called db 0x0D, "is_hex_called", 0x0D, 0x0A, 0
 
 ; Define the BIOS parameter block

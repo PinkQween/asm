@@ -1,6 +1,6 @@
 SECTIONS
 {
-    . = 0x7e00; /* Set the starting address of the kernel */
+    . = 0x7c00; /* Set the starting address of the bootloader */
 
     /* Adjust the location of the kernel signature to match the bootloader */
     .kernel_signature :
